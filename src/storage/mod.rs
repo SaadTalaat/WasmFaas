@@ -5,7 +5,7 @@ use std::io::Error as IOError;
 
 pub trait Storage {
     fn init() -> Self;
-    fn store(&self, name: &str, binary: &[u8]) -> Result<(), IOError>;
+    fn store(&self, name: &str, binary: &[u8], metadata: String) -> Result<(), IOError>;
     fn fetch(&self, name: &str) -> Result<Vec<u8>, IOError>;
 }
 
@@ -21,8 +21,8 @@ impl StorageInterface {
         }
     }
 
-    pub fn store(&self, name: &str, binary: &[u8]) -> Result<(), IOError> {
-        self.medium.store(name, binary)
+    pub fn store(&self, name: &str, binary: &[u8], meta: String) -> Result<(), IOError> {
+        self.medium.store(name, binary, meta)
     }
 
     pub fn fetch(&self, name: &str) -> Result<Vec<u8>, IOError> {

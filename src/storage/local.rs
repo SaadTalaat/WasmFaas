@@ -25,8 +25,10 @@ impl Storage for LocalStorage {
         std::fs::read(path)
     }
 
-    fn store(&self, name: &str, binary: &[u8]) -> Result<(), IOError> {
+    fn store(&self, name: &str, binary: &[u8], meta: String) -> Result<(), IOError> {
         let path = Path::new(&self.base_dir).join(name).with_extension("wasm");
-        std::fs::write(path, binary)
+        let meta_path = Path::new(&self.base_dir).join(name).with_extension("json");
+        std::fs::write(path, binary)?;
+        std::fs::write(meta_path, meta.as_bytes())
     }
 }
