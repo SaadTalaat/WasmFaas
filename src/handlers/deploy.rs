@@ -1,4 +1,4 @@
-use crate::compile::compile;
+use crate::compile::{compile, CompileError};
 use crate::state::Handles;
 use crate::status::Status;
 use axum::{
@@ -8,10 +8,9 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::io::Write;
 use wasmer::{
-    imports, Function as HostFunction, FunctionEnvMut as HostFunctionEnvMut, Instance, Module,
-    Store,
+    imports, Function as HostFunction, FunctionEnv as HostFunctionEnv,
+    FunctionEnvMut as HostFunctionEnvMut, Instance, Module, Store,
 };
 
 #[derive(Deserialize)]
@@ -21,17 +20,31 @@ pub struct DeployableFunction {
 }
 
 #[derive(Debug)]
-enum DeploymentError {
+pub enum DeploymentError {
     LoadingInstance,
     InvalidModule,
     FunctionNotFound(String),
     CorruptFunctionDesc,
     UnsupportedType(String),
     NotAFunction,
+    CompileError,
+    InternalError(String),
+}
+impl From<CompileError> for DeploymentError {
+    fn from(error: CompileError) -> Self {
+        match error {
+            CompileError::CompileError => DeploymentError::CompileError,
+            _ => DeploymentError::InternalError(format!("{}", error)),
+        }
+    }
 }
 
 impl IntoResponse for DeploymentError {
     fn into_response(self) -> Response {
+        let status = match self {
+            Self::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            _ => StatusCode::BAD_REQUEST,
+        };
         let msg = match self {
             Self::LoadingInstance => "could not parse wasm instance".to_owned(),
             Self::InvalidModule => "corrupt wasm module".to_owned(),
@@ -39,22 +52,33 @@ impl IntoResponse for DeploymentError {
             Self::FunctionNotFound(name) => format!("function not found: {}", name),
             Self::UnsupportedType(type_name) => format!("unsupported type: {}", type_name),
             Self::NotAFunction => "not a function".to_owned(),
+            Self::CompileError => "compilation error".to_owned(),
+            Self::InternalError(msg) => format!("Internal Error: {}", msg),
         };
-        (StatusCode::BAD_REQUEST, msg).into_response()
+
+        (status, msg).into_response()
     }
 }
 
 pub async fn deploy(
     Extension(handles): Extension<Handles>,
     Json(func): Json<DeployableFunction>,
-) -> impl IntoResponse {
-    let bytes = compile(&func.body).await.unwrap();
-    let description = describe_fn(&func.name, &bytes).unwrap();
-    println!("Description: {:?}", description);
-    println!("Deploying: {}", bytes.len());
-    let json_desc = serde_json::to_string(&description).unwrap();
-    handles.storage.store(&func.name, &bytes, json_desc).unwrap();
-    Json(Status::ok())
+) -> Result<Json<Status>, DeploymentError> {
+    let bytes = compile(&func.body).await?;
+    let description = describe_fn(&func.name, &bytes)?;
+    match description {
+        TypeDesc::Function(_) => {
+            println!("Description: {:?}", description);
+            println!("Deploying: {}", bytes.len());
+            let json_desc = serde_json::to_string(&description).unwrap();
+            handles
+                .storage
+                .store(&func.name, &bytes, json_desc)
+                .unwrap();
+            Ok(Json(Status::ok()))
+        }
+        _ => Err(DeploymentError::NotAFunction),
+    }
 }
 
 fn describe_fn(name: &str, bytes: &[u8]) -> Result<TypeDesc, DeploymentError> {
@@ -62,18 +86,18 @@ fn describe_fn(name: &str, bytes: &[u8]) -> Result<TypeDesc, DeploymentError> {
     let parsed_description = TypeDesc::decode(&mut &raw_description[..])?;
     match parsed_description {
         TypeDesc::Function(_) => Ok(parsed_description),
-        _ => Err(DeploymentError::NotAFunction)
+        _ => Err(DeploymentError::NotAFunction),
     }
 }
 
 fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, DeploymentError> {
     let mut store = Store::default();
     let module = Module::new(&store, bytes).map_err(|_| DeploymentError::InvalidModule)?;
-    fn description(mut env: wasmer::FunctionEnvMut<Vec<u8>>, x: u8) {
+    fn description(mut env: HostFunctionEnvMut<Vec<u8>>, x: u8) {
         env.data_mut().push(x);
     }
 
-    let env = wasmer::FunctionEnv::new(&mut store, Vec::new());
+    let env = HostFunctionEnv::new(&mut store, Vec::new());
     let import_obj = imports! {
         "__wbindgen_placeholder__" => {
             "__wbindgen_describe" => HostFunction::new_typed_with_env(
@@ -170,28 +194,12 @@ impl TypeDesc {
             24 => Self::Char,
             25 => Self::Option(Box::new(Self::decode(bytes)?)),
             26 => return unsupported_err("result"),
-            26 => Self::Unit,
+            27 => Self::Unit,
             28 => return unsupported_err("clamped"),
             _ => return unsupported_err("undefined"),
         };
         Ok(ty)
     }
-}
-pub enum VectorKind {
-    I8,
-    U8,
-    ClampedU8,
-    I16,
-    U16,
-    I32,
-    U32,
-    I64,
-    U64,
-    F32,
-    F64,
-    String,
-    Externref,
-    NamedExternref(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -208,7 +216,7 @@ impl Function {
         let nparam = bytes[1];
         *bytes = &bytes[2..];
         let mut params = vec![];
-        for _ in (0..nparam) {
+        for _ in 0..nparam {
             params.push(TypeDesc::decode(bytes)?);
         }
         let ret = TypeDesc::decode(bytes)?;

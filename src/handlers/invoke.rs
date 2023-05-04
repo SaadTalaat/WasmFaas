@@ -19,6 +19,11 @@ pub struct InvokeRequest {
 pub async fn invoke(Extension(handles): Extension<Handles>, Path(name): Path<String>, Json(request): Json<InvokeRequest>) -> impl IntoResponse {
     println!("name: {}", name);
     println!("request: {:?}", request.args);
+    // --------
+    let registry = handles.registry;
+    let result = registry.invoke("A".to_owned());
+    return result;
+    // -------
     let wasm_bytes = handles.storage.fetch(&name).unwrap();
     let mut store = Store::default();
     let module = Module::new(&store, wasm_bytes).unwrap();

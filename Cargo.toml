@@ -16,5 +16,6 @@ wasmer = "3.2.1"
 wasm-bindgen = "0.2.84"
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.4.0", features = ["fs", "trace"] }
+crossbeam-channel = "0.5.8"
 [workspace]
 members =["faas-client", "boilerplate"]

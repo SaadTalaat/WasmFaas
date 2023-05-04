@@ -1,14 +1,21 @@
-use axum::{Router, Json, routing::{get, post}, extract::{Path, Extension}, response::IntoResponse, http::StatusCode};
-use tempfile::{Builder, TempDir};
-use std::process::Command;
-use serde::{Serialize, Deserialize};
+use axum::{
+    extract::{Extension, Path},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
+};
+use faas::handlers::{DeployHandler, InvokeHandler, WSHandler};
+use faas::state::Handles;
+use faas::Registry;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{self, Write};
-use faas::handlers::{WSHandler, DeployHandler, InvokeHandler};
-use faas::state::Handles;
 use std::net::SocketAddr;
-enum MyError {
-}
+use std::process::Command;
+use tempfile::{Builder, TempDir};
+
+enum MyError {}
 
 impl IntoResponse for MyError {
     fn into_response(self) -> axum::response::Response {
@@ -18,9 +25,10 @@ impl IntoResponse for MyError {
 
 #[tokio::main]
 async fn main() {
-    let handles = Handles::new();
+    let registry = Registry::start();
+    let handles = Handles::new(registry);
     let app = Router::new()
-        .route("/", get(|| async {"hello"}))
+        .route("/", get(|| async { "hello" }))
         .route("/deploy", post(DeployHandler))
         .route("/invoke/:name", post(InvokeHandler))
         .route("/ws", get(WSHandler))
@@ -30,5 +38,4 @@ async fn main() {
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .await
         .unwrap();
-
 }
