@@ -78,11 +78,10 @@ fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, DeploymentEr
         }
     };
 
-    let instance = Instance::new(&mut store, &module, &import_obj)
-        .map_err(|e| {
-            tracing::warn!("Failed to load instance: {e:?}");
-            DeploymentError::LoadingInstance
-        })?;
+    let instance = Instance::new(&mut store, &module, &import_obj).map_err(|e| {
+        tracing::warn!("Failed to load instance: {e:?}");
+        DeploymentError::LoadingInstance
+    })?;
     let desc_func_name = format!("__wbindgen_describe_{}", name);
     let wasm_desc_func = instance
         .exports
@@ -103,7 +102,7 @@ pub struct DeployableFunction {
 
 #[derive(Debug, Serialize)]
 #[repr(u8)]
-#[serde(rename_all = "snake_case", tag="type", content="content")]
+#[serde(rename_all = "snake_case", tag = "type", content = "content")]
 enum TypeDesc {
     I8,                      // 0
     U8,                      // 1
@@ -232,12 +231,11 @@ pub enum DeploymentError {
 }
 
 impl Into<Status> for DeploymentError {
-
     fn into(self) -> Status {
         let msg = format!("{}", self);
         let kind = match self {
             Self::InternalError(_) => StatusKind::InternalError,
-            _ => StatusKind::BadRequest
+            _ => StatusKind::BadRequest,
         };
         Status::new(kind, msg)
     }

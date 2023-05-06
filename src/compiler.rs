@@ -45,7 +45,8 @@ impl Compiler {
             Err(CompileError::Generic)
         } else {
             // Read binary
-            let wasm = tokio::fs::read("./target/wasm32-unknown-unknown/release/boilerplate.wasm").await?;
+            let wasm =
+                tokio::fs::read("./target/wasm32-unknown-unknown/release/boilerplate.wasm").await?;
             Ok(wasm)
         }
     }

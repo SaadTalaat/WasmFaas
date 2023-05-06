@@ -6,11 +6,10 @@ use axum::{
     Router,
 };
 use faas::{
+    compiler::Compiler,
     handlers::{DeployHandler, InvokeHandler, WSHandler},
     state::Handles,
-    compiler::Compiler,
-    Registry,
-    Settings,
+    Registry, Settings,
 };
 
 use std::error::Error;

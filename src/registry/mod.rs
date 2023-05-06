@@ -5,18 +5,14 @@ use crate::{
 };
 use axum::response::{IntoResponse, Response};
 use serde_json::Value as JsValue;
-use std::{
-    collections::HashMap,
-    sync::Arc
-};
+use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 use tokio::{
     sync::{
         mpsc::{channel, error::SendTimeoutError, Receiver, Sender},
-        oneshot,
-        Mutex, RwLock
+        oneshot, Mutex, RwLock,
     },
-    time::Duration
+    time::Duration,
 };
 use uuid::Uuid;
 
