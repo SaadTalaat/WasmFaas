@@ -1,15 +1,23 @@
-use crate::proto::{NodeMsg, RegistryMsg};
-use crate::settings::RegistrySettings;
-use crate::status::{Status, StatusKind};
+use crate::{
+    proto::{NodeMsg, RegistryMsg},
+    settings::RegistrySettings,
+    status::{Status, StatusKind},
+};
 use axum::response::{IntoResponse, Response};
 use serde_json::Value as JsValue;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    sync::Arc
+};
 use thiserror::Error;
-use tokio::sync::mpsc::{channel, error::SendTimeoutError, Receiver, Sender};
-use tokio::sync::oneshot;
-use tokio::sync::{Mutex, RwLock};
+use tokio::{
+    sync::{
+        mpsc::{channel, error::SendTimeoutError, Receiver, Sender},
+        oneshot,
+        Mutex, RwLock
+    },
+    time::Duration
+};
 use uuid::Uuid;
 
 pub struct Registry {
@@ -126,6 +134,12 @@ impl NodeHandle {
     }
 }
 
+struct NodeBucket {
+    nodes: RwLock<Vec<Arc<Mutex<NodeHandle>>>>,
+    key_to_idx: RwLock<HashMap<Uuid, usize>>,
+    counter: RwLock<usize>,
+}
+
 impl NodeBucket {
     pub fn new() -> Self {
         Self {
@@ -205,10 +219,4 @@ impl IntoResponse for BackendError {
         let status: Status = self.into();
         status.into_response()
     }
-}
-
-struct NodeBucket {
-    nodes: RwLock<Vec<Arc<Mutex<NodeHandle>>>>,
-    key_to_idx: RwLock<HashMap<Uuid, usize>>,
-    counter: RwLock<usize>,
 }
