@@ -67,7 +67,6 @@ pub async fn ws_handler(
 }
 
 async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: SocketAddr) {
-    // TODO: register using UUID
     let handle = registry.register().await;
     let node_id = handle.id;
     let reply_pool = Arc::new(WSReplyPool::new());
@@ -95,16 +94,13 @@ async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: SocketAddr) {
             registry_relay_task.abort();
 
         },
-        //worker_relay(sender, registry.clone(), &mut handle, &mut senders) => {},
         e = (&mut registry_relay_task) => {
-            // TODO: should disconnect here as well
             match e {
                 Ok(_) => tracing::info!("Registry relay: Disconnected"),
                 Err(e) => tracing::warn!("Registry relay: Failed ({e})")
             }
             worker_relay_task.abort();
         },
-        //registry_relay(receiver, registry.clone(), registry_relay_senders) => {}
     }
     registry.deregister(&node_id).await;
 }
@@ -118,7 +114,11 @@ async fn worker_relay(
     loop {
         match handle.receiver.try_recv() {
             Ok(msg) => {
-                send_to_worker(msg, &mut socket, &reply_pool).await;
+                let ctrl = send_to_worker(msg, &mut socket, &reply_pool).await;
+                if ctrl.is_break() {
+                    // Worker likely disconnected
+                    break
+                }
             }
             Err(_) => {}
         };
