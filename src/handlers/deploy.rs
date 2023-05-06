@@ -80,7 +80,7 @@ fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, DeploymentEr
 
     let instance = Instance::new(&mut store, &module, &import_obj)
         .map_err(|e| {
-            println!("{:?}, {:?}, {:?}", module, bytes.len(), e);
+            tracing::warn!("Failed to load instance: {e:?}");
             DeploymentError::LoadingInstance
         })?;
     let desc_func_name = format!("__wbindgen_describe_{}", name);

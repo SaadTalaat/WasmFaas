@@ -33,7 +33,7 @@ impl IntoResponse for MyError {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let settings = Settings::new()?;
-    println!("{:?}", settings);
+    tracing::info!("Running with settings: {:?}", settings);
     tracing_subscriber::fmt::init();
     let registry = Registry::start(settings.registry);
     let compiler = Compiler::new("./boilerplate");
