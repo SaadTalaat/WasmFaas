@@ -1,5 +1,5 @@
-use crate::proto::{WSProto, NodeMsg, RegistryMsg};
-use crate::registry::{RegistryHandle};
+use crate::proto::{NodeMsg, RegistryMsg, WSProto};
+use crate::registry::RegistryHandle;
 use crate::state::Handles;
 use crate::Registry;
 use axum::extract::connect_info::ConnectInfo;
@@ -12,12 +12,7 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    ops::ControlFlow,
-    sync::Arc,
-};
+use std::{collections::HashMap, net::SocketAddr, ops::ControlFlow, sync::Arc};
 use thiserror::Error;
 use tokio::{
     sync::{oneshot::Sender, Mutex},
@@ -75,19 +70,17 @@ async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: SocketAddr) {
     // them to the worker.
     let mut worker_relay_task = {
         let reply_pool = reply_pool.clone();
-        tokio::spawn(async { worker_relay(sender, handle, reply_pool) })
+        tokio::spawn(async { worker_relay(sender, handle, reply_pool).await })
     };
     // Task to receive messages from workers and relay
     // them to registry
-    let mut registry_relay_task = tokio::spawn(async { registry_relay(receiver, reply_pool) });
+    let mut registry_relay_task =
+        tokio::spawn(async { registry_relay(receiver, reply_pool).await });
 
     tokio::select! {
         maybe_handle = (&mut worker_relay_task) => {
             match maybe_handle {
-                Ok(handle) =>{
-                    handle.await;
-                    tracing::info!("Worker relay: Disconnected");
-                }
+                Ok(_) => tracing::info!("Worker relay: Disconnected"),
                 _ => {
                 }
             }
@@ -117,7 +110,7 @@ async fn worker_relay(
                 let ctrl = send_to_worker(msg, &mut socket, &reply_pool).await;
                 if ctrl.is_break() {
                     // Worker likely disconnected
-                    break
+                    break;
                 }
             }
             Err(_) => {}
@@ -194,7 +187,7 @@ async fn process_worker_msg(msg: Message, reply_pool: &Arc<WSReplyPool>) -> Cont
                 Ok(payload) => payload,
                 // WS Client sending malformed payloads
                 // Assume malicious and disconnect
-                Err(_) => return ControlFlow::Break(())
+                Err(_) => return ControlFlow::Break(()),
             };
 
             match response {
@@ -209,19 +202,19 @@ async fn process_worker_msg(msg: Message, reply_pool: &Arc<WSReplyPool>) -> Cont
                         // Worker sending return values unprovoked?
                         // disconnect
                         Err(_) => return ControlFlow::Break(()),
-                        _ => ()
+                        _ => (),
                     }
                 }
                 _ => {
                     // WS client sending illegal messages i.e. WSProto::Invoke
                     // disconnect
-                    return ControlFlow::Break(())
+                    return ControlFlow::Break(());
                 }
             }
         }
 
         Message::Pong(_) => {
-            tracing::debug!("Worker pong received");
+            // TODO: Should update worker last_ts
         }
 
         Message::Close(_) => {
