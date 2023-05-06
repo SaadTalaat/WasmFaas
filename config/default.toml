@@ -1,0 +1,14 @@
+[http]
+host = "0.0.0.0"
+port = 8090
+
+[storage]
+medium = {type = "local", directory="./bin"}
+
+[compiler]
+source_dir = "./boilerplate"
+out_dir = "./bin"
+
+[registry]
+channel_size = 1
+timeout_secs = 5

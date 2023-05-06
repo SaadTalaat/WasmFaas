@@ -2,24 +2,25 @@ use super::Storage;
 use std::io::Error as IOError;
 use std::path::Path;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct LocalStorage {
     base_dir: String,
 }
 
-impl Storage for LocalStorage {
-    fn init() -> Self {
-        let dirname = "bin";
-        let path = Path::new(dirname);
+impl LocalStorage {
+    pub fn new(directory: String) -> Self {
+        let path = Path::new(&directory);
         if !path.exists() {
             std::fs::create_dir(path).unwrap();
         }
 
         Self {
-            base_dir: String::from(dirname),
+            base_dir: directory,
         }
     }
+}
 
+impl Storage for LocalStorage {
     fn fetch(&self, name: &str) -> Result<Vec<u8>, IOError> {
         let path = Path::new(&self.base_dir).join(name).with_extension("wasm");
         std::fs::read(path)

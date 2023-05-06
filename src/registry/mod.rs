@@ -1,202 +1,132 @@
-use crate::streams::{duplex, Stream};
-use std::any::Any;
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::thread::{self, JoinHandle};
+mod proto;
+pub use proto::{RegistryMsg, NodeMsg};
+use crate::status::{Status, StatusKind};
+use thiserror::Error;
+use std::sync::{Arc};
+use tokio::sync::{RwLock, Mutex};
+use tokio::sync::mpsc::{channel, Receiver, Sender, error::{SendTimeoutError}};
+use crate::settings::RegistrySettings;
+use serde_json::Value as JsValue;
+use axum::response::{IntoResponse, Response};
 use std::time::Duration;
-//use tokio::sync::mpsc::{channel, Receiver, Sender};
-use crossbeam_channel::{
-    unbounded as channel, Receiver, RecvError, SendError, Sender, TryRecvError,
-};
 
 pub struct Registry {
-    handle: JoinHandle<()>,
-    stream: Stream<FEProtocol, FEProtocol>,
-    nodes: Mutex<RefCell<Vec<WorkerHandle>>>,
-    counter: Mutex<Cell<u32>>,
-    rr: Mutex<Cell<u32>>,
+    nodes: RwLock<Vec<Mutex<NodeHandle>>>,
+    counter: RwLock<usize>,
+    channel_size :usize,
+    timeout: Duration
 }
 
 impl Registry {
-    pub fn start() -> Self {
-        let (stream_1, stream_2) = duplex();
-        let handle = thread::spawn(|| {
-            let mut backend = RegistryBackend::new(stream_1);
-            backend.run();
-        });
+    pub fn start(settings: RegistrySettings) -> Self {
         Self {
-            handle,
-            stream: stream_2,
-            nodes: Mutex::new(RefCell::new(vec![])),
-            counter: Mutex::new(Cell::new(0)),
-            rr: Mutex::new(Cell::new(0)),
+            counter: RwLock::new(0),
+            nodes: RwLock::new(vec![]),
+            channel_size: settings.channel_size,
+            timeout: Duration::from_secs(settings.timeout_secs as u64)
         }
     }
 
-    pub fn register(&self) -> BackendHandle {
-        let id: u32 = self.get_worker_id();
-        let (channel_1, channel_2) = duplex();
-        let info = WorkerHandle::new(id, channel_1);
-        self.nodes.lock().unwrap().borrow_mut().push(info);
-        //self.send(FEProtocol::Register(info));
-        BackendHandle::new(id, channel_2)
+    pub async fn register(&self) -> RegistryHandle {
+        let mut nodes = self.nodes.write().await;
+        let id = nodes.len();
+        let (sender_1, receiver_1) = channel(self.channel_size);
+        let (sender_2, receiver_2) = channel(self.channel_size);
+        nodes.push(Mutex::new(NodeHandle::new(id, sender_1, receiver_2)));
+        RegistryHandle::new(id, sender_2, receiver_1)
     }
 
-    fn get_worker_id(&self) -> u32 {
-        let id = self.counter.lock().unwrap().get();
-        self.counter.lock().unwrap().set(id + 1);
-        id
+    pub async fn disconnect(&self, handle: RegistryHandle) {
+        let mut nodes = self.nodes.write().await;
+        nodes.remove(handle.id);
     }
 
-    pub fn disconnect(&self, stream: &BackendHandle) {
-        self.send(FEProtocol::Disconnect(stream.id))
-    }
-
-    pub fn invoke(&self, fn_name: String) -> String {
-        self.send(FEProtocol::Invoke(fn_name));
-        if let FEProtocol::Result(r) = self.recv() {
-            r
-        } else {
-            panic!("Invalid result")
+    pub async fn invoke(&self, fn_name: String, args: Vec<JsValue>) -> Result<Status, BackendError> {
+        let nodes = self.nodes.read().await;
+        if nodes.len() == 0 {
+            return Err(BackendError::NoWorkersAvailable);
         }
-    }
-    pub fn send(&self, msg: FEProtocol) {
-        self.stream.send(msg).unwrap();
-    }
-    pub fn recv(&self) -> FEProtocol {
-        self.stream.recv().unwrap()
-    }
-
-    pub fn join(self) -> Result<(), Box<dyn Any + Send>> {
-        self.handle.join()
-    }
-}
-
-struct RegistryBackend {
-    stream: Stream<FEProtocol, FEProtocol>,
-    lookup: HashMap<u32, usize>,
-    nodes: Vec<WorkerHandle>,
-}
-
-impl RegistryBackend {
-    pub fn new(stream: Stream<FEProtocol, FEProtocol>) -> Self {
-        Self {
-            stream,
-            lookup: HashMap::new(),
-            nodes: vec![],
-        }
-    }
-
-    pub fn run(&mut self) {
-        let mut counter = 0;
-        println!("Running");
-        loop {
-            if let Ok(msg) = self.stream.try_recv() {
-                match msg {
-                    FEProtocol::Die => {
-                        println!("Dying..");
-                        break;
+        let mut counter = self.counter.write().await;
+        let idx = counter.clone();
+        *counter = (idx + 1) % nodes.len();
+        let node = nodes.get(idx).unwrap().lock().await;
+        let msg = NodeMsg::Invoke(fn_name, args);
+        node.sender.send_timeout(msg, self.timeout).await?;
+        let mut receiver = node.receiver.lock().await;
+        let result = tokio::select! {
+            result = receiver.recv() => {
+                match result {
+                    Some(r) => r,
+                    None => {
+                        tracing::warn!("Worker: {:?} malformed reply", node.id);
+                        return Err(BackendError::NoReply)
                     }
-                    // TODO: use oneshot channels instead of maintaining
-                    // channels for workers
-                    FEProtocol::Invoke(name) => {
-                        let worker_idx = counter;
-                        counter = (counter + 1) % self.nodes.len();
-                        let worker = self.nodes.get(worker_idx).unwrap();
-                        println!("Invoking {} on worker {}", name, worker_idx);
-                        let result = worker.invoke(name).unwrap();
-                        println!("Backend received result: {:?}", result);
-                        if let WorkerProtocol::InvokeResult(r) = result {
-                            self.stream.send(FEProtocol::Result(r)).unwrap();
-                        } else {
-                            panic!("Reply from worker is not InvokeResult: {:?}", result)
-                        }
-                    }
-                    FEProtocol::Register(info) => {
-                        println!("Registering worker {:?}", info.id);
-                        let idx = self.nodes.len();
-                        self.lookup.insert(info.id, idx);
-                        self.nodes.push(info)
-                    }
-                    FEProtocol::Disconnect(id) => {
-                        println!("Disconnected {}", id);
-                        let idx = self.lookup.remove(&id).unwrap();
-                        self.nodes.remove(idx);
-                    }
-                    _ => panic!("Illegal message: {:?}", msg),
                 }
-            } else {
-                thread::sleep(Duration::from_millis(10))
+            },
+            _ = tokio::time::sleep(self.timeout) => {
+                return Err(BackendError::Timeout)
             }
+        };
+
+        match result {
+            RegistryMsg::InvokeResult(r) => Ok(Status::ok_payload(r)),
         }
     }
 }
 
-/// Single stream between backend -> worker
-#[derive(Debug)]
-pub struct WorkerHandle {
-    id: u32,
-    stream: Stream<BEProtocol, WorkerProtocol>,
+pub struct RegistryHandle {
+    id: usize,
+    pub sender: Sender<RegistryMsg>,
+    pub receiver: Receiver<NodeMsg>,
 }
 
-impl WorkerHandle {
-    pub fn new(id: u32, stream: Stream<BEProtocol, WorkerProtocol>) -> Self {
-        Self { id, stream }
-    }
-
-    pub fn invoke(&self, fn_name: String) -> Result<WorkerProtocol, RecvError> {
-        println!("Sending WorkerHandle::");
-        self.stream.send(BEProtocol::Invoke(fn_name)).unwrap();
-        println!("Receiving WorkerHandle::");
-        let res = self.stream.recv();
-        println!("Received WorkerHandle::");
-        res
+impl RegistryHandle {
+    pub fn new(id: usize, sender: Sender<RegistryMsg>, receiver: Receiver<NodeMsg>) -> Self {
+        Self { id, sender, receiver }
     }
 }
 
-/// single stream between worker -> backend
-#[derive(Debug)]
-pub struct BackendHandle {
-    pub id: u32,
-    stream: Stream<WorkerProtocol, BEProtocol>,
+pub struct NodeHandle {
+    pub id: usize,
+    pub sender: Arc<Sender<NodeMsg>>,
+    pub receiver: Mutex<Receiver<RegistryMsg>>
 }
 
-impl BackendHandle {
-    pub fn new(id: u32, stream: Stream<WorkerProtocol, BEProtocol>) -> Self {
-        Self { id, stream }
-    }
-
-    pub fn send(&self, msg: WorkerProtocol) -> Result<(), SendError<WorkerProtocol>> {
-        self.stream.send(msg)
-    }
-
-    pub fn recv(&self) -> Result<BEProtocol, RecvError> {
-        self.stream.recv()
-    }
-
-    pub fn try_recv(&self) -> Result<BEProtocol, TryRecvError> {
-        self.stream.try_recv()
+impl NodeHandle {
+    pub fn new(id: usize, sender: Sender<NodeMsg>, receiver: Receiver<RegistryMsg>) -> Self {
+        Self { id, sender:Arc::new(sender), receiver: Mutex::new(receiver)}
     }
 }
 
-#[derive(Debug)]
-pub enum FEProtocol {
-    Register(WorkerHandle),
-    Disconnect(u32),
-    Invoke(String),
-    Result(String),
-    Die,
+#[derive(Debug, Error)]
+pub enum BackendError {
+    #[error("Out of resources")]
+    NoWorkersAvailable,
+    #[error("Timed out while invoking function")]
+    Timeout,
+    #[error("encountered error while invoking function")]
+    NoReply
 }
 
-#[derive(Debug)]
-pub enum BEProtocol {
-    Invoke(String),
-    WorkerDie,
+impl Into<Status> for BackendError {
+    fn into(self) -> Status {
+        let msg = format!("{}", self);
+        let kind = match self {
+            _ => StatusKind::InternalError
+        };
+        Status::new(kind, msg)
+    }
 }
 
-#[derive(Debug)]
-pub enum WorkerProtocol {
-    InvokeResult(String),
-    Dead,
+impl<T> From<SendTimeoutError<T>> for BackendError {
+    fn from(_: SendTimeoutError<T>) -> BackendError {
+        BackendError::Timeout
+    }
+}
+
+impl IntoResponse for BackendError {
+    fn into_response(self) -> Response {
+        let status: Status = self.into();
+        status.into_response()
+    }
 }

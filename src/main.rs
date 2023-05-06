@@ -1,19 +1,26 @@
 use axum::{
-    extract::{Extension, Path},
+    extract::Extension,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Router,
 };
-use faas::handlers::{DeployHandler, InvokeHandler, WSHandler};
-use faas::state::Handles;
-use faas::Registry;
-use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{self, Write};
+use faas::{
+    handlers::{DeployHandler, InvokeHandler, WSHandler},
+    state::Handles,
+    compiler::Compiler,
+    Registry,
+    Settings,
+};
+
+use std::error::Error;
 use std::net::SocketAddr;
-use std::process::Command;
-use tempfile::{Builder, TempDir};
+use tower::ServiceBuilder;
+use tower_http::{
+    cors::{Any, CorsLayer},
+    services::ServeDir,
+    trace::TraceLayer,
+};
 
 enum MyError {}
 
@@ -24,18 +31,31 @@ impl IntoResponse for MyError {
 }
 
 #[tokio::main]
-async fn main() {
-    let registry = Registry::start();
-    let handles = Handles::new(registry);
+async fn main() -> Result<(), Box<dyn Error>> {
+    let settings = Settings::new()?;
+    println!("{:?}", settings);
+    tracing_subscriber::fmt::init();
+    let registry = Registry::start(settings.registry);
+    let compiler = Compiler::new("./boilerplate");
+    let handles = Handles::new(registry, compiler)?;
+    let extra_layers = ServiceBuilder::new()
+        .layer(TraceLayer::new_for_http())
+        .layer(CorsLayer::new().allow_origin(Any))
+        .layer(Extension(handles));
+    // allow requests from any origin
+
     let app = Router::new()
+        .nest_service("/assets", ServeDir::new("bin"))
         .route("/", get(|| async { "hello" }))
         .route("/deploy", post(DeployHandler))
         .route("/invoke/:name", post(InvokeHandler))
         .route("/ws", get(WSHandler))
-        .layer(Extension(handles));
-    println!("Listening");
-    axum::Server::bind(&"0.0.0.0:8090".parse().unwrap())
+        .layer(extra_layers);
+
+    let listen_addr: SocketAddr = "0.0.0.0:8090".parse()?;
+    tracing::info!("Server started: Listening on: {}", listen_addr);
+    axum::Server::bind(&listen_addr)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .unwrap();
+        .await?;
+    Ok(())
 }

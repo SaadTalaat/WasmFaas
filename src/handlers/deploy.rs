@@ -1,75 +1,34 @@
-use crate::compile::{compile, CompileError};
+use crate::compiler::CompileError;
 use crate::state::Handles;
-use crate::status::Status;
+use crate::status::{Status, StatusKind};
 use axum::{
     extract::Extension,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use thiserror::Error;
+
 use serde::{Deserialize, Serialize};
 use wasmer::{
     imports, Function as HostFunction, FunctionEnv as HostFunctionEnv,
     FunctionEnvMut as HostFunctionEnvMut, Instance, Module, Store,
 };
 
-#[derive(Deserialize)]
-pub struct DeployableFunction {
-    name: String,
-    body: String,
-}
-
-#[derive(Debug)]
-pub enum DeploymentError {
-    LoadingInstance,
-    InvalidModule,
-    FunctionNotFound(String),
-    CorruptFunctionDesc,
-    UnsupportedType(String),
-    NotAFunction,
-    CompileError,
-    InternalError(String),
-}
-impl From<CompileError> for DeploymentError {
-    fn from(error: CompileError) -> Self {
-        match error {
-            CompileError::CompileError => DeploymentError::CompileError,
-            _ => DeploymentError::InternalError(format!("{}", error)),
-        }
-    }
-}
-
-impl IntoResponse for DeploymentError {
-    fn into_response(self) -> Response {
-        let status = match self {
-            Self::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            _ => StatusCode::BAD_REQUEST,
-        };
-        let msg = match self {
-            Self::LoadingInstance => "could not parse wasm instance".to_owned(),
-            Self::InvalidModule => "corrupt wasm module".to_owned(),
-            Self::CorruptFunctionDesc => "corrupt function".to_owned(),
-            Self::FunctionNotFound(name) => format!("function not found: {}", name),
-            Self::UnsupportedType(type_name) => format!("unsupported type: {}", type_name),
-            Self::NotAFunction => "not a function".to_owned(),
-            Self::CompileError => "compilation error".to_owned(),
-            Self::InternalError(msg) => format!("Internal Error: {}", msg),
-        };
-
-        (status, msg).into_response()
-    }
-}
-
 pub async fn deploy(
     Extension(handles): Extension<Handles>,
     Json(func): Json<DeployableFunction>,
 ) -> Result<Json<Status>, DeploymentError> {
-    let bytes = compile(&func.body).await?;
+    // Compile function
+    tracing::info!("Deploying function: {}", &func.name);
+    let bytes = handles.compiler.compile(&func.body).await?;
+    tracing::debug!("Compiled function with size: {} bytes", bytes.len());
+    // Extract function signature
     let description = describe_fn(&func.name, &bytes)?;
+    tracing::debug!("Function signature: {:?}", &description);
+    // store compiled binary & function signature
     match description {
         TypeDesc::Function(_) => {
-            println!("Description: {:?}", description);
-            println!("Deploying: {}", bytes.len());
             let json_desc = serde_json::to_string(&description).unwrap();
             handles
                 .storage
@@ -105,14 +64,25 @@ fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, DeploymentEr
                 &env,
                 description)
         },
+        // NOTE: calls to these imports should not take place during
+        // function signature extraction
         "__wbindgen_externref_xform__" => {
-            "__wbindgen_externref_table_grow" => HostFunction::new_typed(&mut store, |x: i32|x),
-            "__wbindgen_externref_table_set_null" => HostFunction::new_typed(&mut store, |_: i32|())
+            "__wbindgen_externref_table_grow" => HostFunction::new_typed(&mut store, |x: i32|{
+                panic!("Call to __wbindgen_externref_table_grow");
+                // XXX: Unreachable, but just to make Wasmer happy
+                x
+            }),
+            "__wbindgen_externref_table_set_null" => HostFunction::new_typed(&mut store, |_: i32|{
+                panic!("Call to __wbindgen_externref_table_set_null")
+            })
         }
     };
 
     let instance = Instance::new(&mut store, &module, &import_obj)
-        .map_err(|_| DeploymentError::LoadingInstance)?;
+        .map_err(|e| {
+            println!("{:?}, {:?}, {:?}", module, bytes.len(), e);
+            DeploymentError::LoadingInstance
+        })?;
     let desc_func_name = format!("__wbindgen_describe_{}", name);
     let wasm_desc_func = instance
         .exports
@@ -125,8 +95,15 @@ fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, DeploymentEr
     Ok(result)
 }
 
+#[derive(Deserialize)]
+pub struct DeployableFunction {
+    name: String,
+    body: String,
+}
+
 #[derive(Debug, Serialize)]
 #[repr(u8)]
+#[serde(rename_all = "snake_case", tag="type", content="content")]
 enum TypeDesc {
     I8,                      // 0
     U8,                      // 1
@@ -233,3 +210,42 @@ impl Function {
 
 #[derive(Serialize)]
 struct Closure {}
+
+#[derive(Error, Debug)]
+pub enum DeploymentError {
+    #[error("could not parse wasm instance")]
+    LoadingInstance,
+    #[error("corrupt wasm module")]
+    InvalidModule,
+    #[error("function({0}) not found in binary")]
+    FunctionNotFound(String),
+    #[error("corrupt function signature")]
+    CorruptFunctionDesc,
+    #[error("unsupported type: {0}")]
+    UnsupportedType(String),
+    #[error("called identifier is not a function")]
+    NotAFunction,
+    #[error("{0}")]
+    CompileError(#[from] CompileError),
+    #[error("{0}")]
+    InternalError(String),
+}
+
+impl Into<Status> for DeploymentError {
+
+    fn into(self) -> Status {
+        let msg = format!("{}", self);
+        let kind = match self {
+            Self::InternalError(_) => StatusKind::InternalError,
+            _ => StatusKind::BadRequest
+        };
+        Status::new(kind, msg)
+    }
+}
+
+impl IntoResponse for DeploymentError {
+    fn into_response(self) -> Response {
+        let status: Status = self.into();
+        status.into_response()
+    }
+}
