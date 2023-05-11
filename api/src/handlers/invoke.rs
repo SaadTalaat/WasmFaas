@@ -28,9 +28,9 @@ pub async fn invoke(
     let func = Function::get(id, &mut db_conn).await?;
     func.validate_args(&request.args)?;
     // Record request
-    let invoke_record = InvokeRequest::new(addr.to_string(), func.id, Some(&request.args))
+    InvokeRequest::new(addr.to_string(), func.id, Some(&request.args))
         .insert(&mut db_conn)
-        .await;
+        .await?;
     tracing::trace!(
         "Invoking function: {} with args: {:?}",
         &func.name,
