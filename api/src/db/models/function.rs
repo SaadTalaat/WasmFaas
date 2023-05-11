@@ -51,9 +51,9 @@ impl Function {
             _ => Err(DBError::NotAFunction),
         }
     }
-    pub async fn get(name: &str, conn: &mut DBPoolConnection) -> Result<Self, DBError> {
+    pub async fn get(id: i32, conn: &mut DBPoolConnection) -> Result<Self, DBError> {
         functions::table
-            .filter(functions::name.eq(name))
+            .filter(functions::id.eq(id))
             .select(Function::as_select())
             .get_result(conn)
             .await

@@ -1,12 +1,13 @@
-pub mod db;
-pub mod extensions;
+mod db;
+mod extensions;
 pub mod handlers;
 pub mod proto;
 mod registry;
 mod settings;
-pub mod state;
+mod state;
 mod status;
 mod util;
 
-pub use registry::Registry;
+pub use extensions::Handles;
 pub use settings::Settings;
+pub use state::AppState;

@@ -9,7 +9,7 @@ pub enum WSProto {
     Invoke {
         // TODO: Change to UUID?
         request_id: String,
-        name: String,
+        uri: String,
         args: Vec<JsValue>,
     },
     Result {
@@ -19,10 +19,10 @@ pub enum WSProto {
 }
 
 impl WSProto {
-    pub fn invoke_request(request_id: String, name: String, args: Vec<JsValue>) -> WSProto {
+    pub fn invoke_request(request_id: String, uri: String, args: Vec<JsValue>) -> WSProto {
         Self::Invoke {
             request_id,
-            name,
+            uri,
             args,
         }
     }
@@ -45,7 +45,7 @@ pub enum RegistryMsg {
 #[derive(Debug)]
 pub enum NodeMsg {
     Invoke {
-        name: String,
+        uri: String,
         args: Vec<JsValue>,
         sender: Sender<RegistryMsg>,
     },

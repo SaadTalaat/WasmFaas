@@ -1,4 +1,4 @@
-use crate::db::{DBPool, DBPoolConnection};
+use crate::db::DBPool;
 use axum::extract::FromRef;
 use diesel_async::{
     pooled_connection::{

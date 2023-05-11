@@ -27,3 +27,4 @@ uuid = {version = "1.3.2", features=["v4", "fast-rng"]}
 diesel-async = {version = "0.2.2", features=["bb8", "postgres"]}
 bb8 = "0.8.0"
 diesel = { version = "2.0.4", features=["serde_json", "postgres_backend", "postgres"]}
+rand = "0.8.5"

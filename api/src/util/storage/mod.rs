@@ -10,8 +10,8 @@ pub trait Storage {
     async fn fetch(&self, name: &str) -> Result<Vec<u8>, IOError>;
 }
 
-pub fn init(settings: StorageSettings) -> impl Storage {
-    match settings.medium {
-        StorageKind::Local { directory } => LocalStorage::new(directory),
+pub fn init(settings: &StorageSettings) -> impl Storage {
+    match &settings.medium {
+        StorageKind::Local { directory } => LocalStorage::new(directory.clone()),
     }
 }

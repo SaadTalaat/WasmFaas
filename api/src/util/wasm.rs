@@ -22,10 +22,10 @@ pub fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, WasmErro
         // NOTE: calls to these imports should not take place during
         // function signature extraction
         "__wbindgen_externref_xform__" => {
-            "__wbindgen_externref_table_grow" => HostFunction::new_typed(&mut store, |x: i32|{
+            "__wbindgen_externref_table_grow" => HostFunction::new_typed(&mut store, |_x: i32|{
                 panic!("Call to __wbindgen_externref_table_grow");
                 // XXX: Unreachable, but just to make Wasmer happy
-                x
+                _x
             }),
             "__wbindgen_externref_table_set_null" => HostFunction::new_typed(&mut store, |_: i32|{
                 panic!("Call to __wbindgen_externref_table_set_null")

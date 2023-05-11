@@ -1,13 +1,8 @@
-use crate::{
-    db::models::{
-        function::{Function},
-    },
-    extensions::Handles,
-    state::AppState,
-    status::Status,
-    util::wasm::extract_description
-};
 use super::result::{APIError, APIResult};
+use crate::{
+    db::models::Function, extensions::Handles, state::AppState, status::Status,
+    util::wasm::extract_description,
+};
 use axum::{
     extract::{Extension, State},
     Json,
@@ -28,9 +23,13 @@ pub async fn deploy(
     let description = extract_description(&func.name, &bytes)?;
     tracing::trace!("Function signature: {:?}", &description);
     // Store function to Storage medium, i.e. Disk, S3..etc
-    let path = handles.storage.store(&func.name, &bytes).await.map_err(|_|{
-        APIError::InternalError
-    })?;
+    let suffix = rand::random::<u32>();
+    let filename = format!("{}_{}", &func.name, suffix);
+    let path = handles
+        .storage
+        .store(&filename, &bytes)
+        .await
+        .map_err(|_| APIError::InternalError)?;
     // Create a function record in DB
     tracing::debug!("Writing function to DB");
     let mut db_conn = state

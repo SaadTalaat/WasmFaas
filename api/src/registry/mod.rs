@@ -1,9 +1,8 @@
 use crate::{
     proto::{NodeMsg, RegistryMsg},
     settings::RegistrySettings,
-    status::{Status, StatusKind},
+    status::Status,
 };
-use axum::response::{IntoResponse, Response};
 use serde_json::Value as JsValue;
 use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
@@ -23,7 +22,7 @@ pub struct Registry {
 }
 
 impl Registry {
-    pub fn start(settings: RegistrySettings) -> Self {
+    pub fn start(settings: &RegistrySettings) -> Self {
         Self {
             nodes: NodeBucket::new(),
             channel_size: settings.channel_size,
@@ -51,16 +50,16 @@ impl Registry {
 
     pub async fn invoke(
         &self,
-        fn_name: String,
+        uri: String,
         args: Vec<JsValue>,
     ) -> Result<Status, BackendError> {
         let node = self.nodes.get_node().await?;
         let node_id = node.lock().await.id;
-        tracing::trace!("Invoking function ({fn_name}) on worker ({node_id})");
+        tracing::trace!("Invoking function ({uri}) on worker ({node_id})");
 
         let (sender, mut receiver) = oneshot::channel();
         let msg = NodeMsg::Invoke {
-            name: fn_name,
+            uri,
             args,
             sender,
         };
@@ -78,7 +77,8 @@ impl Registry {
                     _ => tokio::time::sleep(Duration::from_millis(5)).await,
                 }
             }
-            // Unreachable
+
+            // NOTE: Unreachable, but needed for type inference.
             Err(BackendError::Timeout)
         });
 

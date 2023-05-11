@@ -6,13 +6,14 @@ use axum::{
     Router,
 };
 use faas::{
-    compiler::Compiler,
     handlers::{DeployHandler, InvokeHandler, WSHandler},
-    extensions::Handles,
-    state::AppState,
-    Registry, Settings,
+    AppState, Handles, Settings,
 };
 
+use diesel_async::{
+    pooled_connection::{bb8::Pool, AsyncDieselConnectionManager},
+    AsyncPgConnection,
+};
 use std::error::Error;
 use std::net::SocketAddr;
 use tower::ServiceBuilder;
@@ -20,10 +21,6 @@ use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
-};
-use diesel_async::{
-    pooled_connection::{bb8::Pool, AsyncDieselConnectionManager},
-    AsyncPgConnection,
 };
 
 enum MyError {}
@@ -39,9 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let settings = Settings::new()?;
     tracing::info!("Running with settings: {:?}", settings);
     tracing_subscriber::fmt::init();
-    let registry = Registry::start(settings.registry);
-    let compiler = Compiler::new(&settings.compiler.source_dir);
-    let handles = Handles::new(registry, compiler)?;
+    let handles = Handles::new(&settings)?;
     let extra_layers = ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
         // allow requests from any origin
@@ -54,8 +49,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .nest_service("/assets", ServeDir::new("bin"))
         .route("/", get(|| async { "hello" }))
-        .route("/deploy", post(DeployHandler))
-        .route("/invoke/:name", post(InvokeHandler))
+        .route("/functions", post(DeployHandler))
+        .route("/functions/:id", post(InvokeHandler))
         .route("/ws", get(WSHandler))
         .layer(extra_layers)
         .with_state(state);

@@ -19,7 +19,7 @@ impl From<DieselError> for Error {
     fn from(error: DieselError) -> Self {
         match error {
             DieselError::NotFound => Error::NotFound,
-            DieselError::DatabaseError(_, _) => Self::DBError(error),
+            _ => Self::DBError(error),
         }
     }
 }

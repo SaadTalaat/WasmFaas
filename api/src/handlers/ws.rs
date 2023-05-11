@@ -1,7 +1,9 @@
-use crate::proto::{NodeMsg, RegistryMsg, WSProto};
-use crate::registry::RegistryHandle;
-use crate::extensions::Handles;
-use crate::Registry;
+use crate::{
+    extensions::Handles,
+    proto::{NodeMsg, RegistryMsg, WSProto},
+    registry::Registry,
+    registry::RegistryHandle,
+};
 use axum::extract::connect_info::ConnectInfo;
 use axum::{
     extract::{
@@ -13,7 +15,6 @@ use axum::{
 use futures::{sink::SinkExt, stream::StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use std::{collections::HashMap, net::SocketAddr, ops::ControlFlow, sync::Arc};
-use thiserror::Error;
 use tokio::{
     sync::{oneshot::Sender, Mutex},
     time::Duration,
@@ -61,7 +62,7 @@ pub async fn ws_handler(
     upgrade.on_upgrade(move |socket| handle(registry, socket, addr))
 }
 
-async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: SocketAddr) {
+async fn handle(registry: Arc<Registry>, socket: WebSocket, _addr: SocketAddr) {
     let handle = registry.register().await;
     let node_id = handle.id;
     let reply_pool = Arc::new(WSReplyPool::new());
@@ -135,10 +136,10 @@ async fn send_to_worker(
 ) -> ControlFlow<(), ()> {
     tracing::trace!("Relaying message {msg:?} to worker");
     match msg {
-        NodeMsg::Invoke { name, args, sender } => {
+        NodeMsg::Invoke { uri, args, sender } => {
             let request_id = Uuid::new_v4().to_string();
             let reply_sender = sender;
-            let ws_msg: WSProto = WSProto::invoke_request(request_id.clone(), name, args);
+            let ws_msg: WSProto = WSProto::invoke_request(request_id.clone(), uri, args);
             // TODO: insert call timestamp to cleanup senders
             reply_pool.register(request_id, reply_sender).await;
             let sent_status = socket.send(Message::Text(ws_msg.to_json())).await;
@@ -225,10 +226,4 @@ async fn process_worker_msg(msg: Message, reply_pool: &Arc<WSReplyPool>) -> Cont
         unhandled => tracing::warn!("Unexpected message from worker: {:?}", unhandled),
     };
     ControlFlow::Continue(())
-}
-
-#[derive(Error, Debug)]
-pub enum ClientError {
-    #[error("Client disconnected")]
-    Disconnected,
 }
