@@ -10,13 +10,11 @@ services:
   api:
     build:
       context: ./api/
-      dockerfile: ./Dockerfile
+      dockerfile: ./api.dockerfile
     image: faas/api
     hostname: api
     env_file:
       - ./config/${FAAS_BUILD_ENV}.env
-        #volumes:
-        #- ./:/faas/src/api
     ports:
       - "8090:8090"
     depends_on:
