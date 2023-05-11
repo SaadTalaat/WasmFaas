@@ -1,0 +1,45 @@
+version: '3'
+
+services:
+  base:
+    build:
+      context: ./api/
+      dockerfile: ./base.dockerfile
+    image: faas/base
+
+  api:
+    build:
+      context: ./api/
+      dockerfile: ./Dockerfile
+    image: faas/api
+    hostname: api
+    env_file:
+      - ./config/${FAAS_BUILD_ENV}.env
+        #volumes:
+        #- ./:/faas/src/api
+    ports:
+      - "8090:8090"
+    depends_on:
+      - database
+      - migrate
+      - base
+
+  migrate:
+    build:
+      context: ./api/
+      dockerfile: ./migrate.dockerfile
+    image: faas/migrate
+    env_file:
+      - ./config/${FAAS_BUILD_ENV}.env
+
+  database:
+    image: postgres
+    hostname: database
+    env_file:
+      - ./config/${FAAS_BUILD_ENV}.env
+    volumes:
+      - ./database/data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    expose:
+      - "5432"

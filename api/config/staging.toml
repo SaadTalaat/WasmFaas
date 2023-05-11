@@ -1,0 +1,14 @@
+[http]
+host = "0.0.0.0"
+port = 8090
+assets_directory="/faas/assets"
+
+[storage]
+medium = {type = "local", directory="/faas/assets"}
+
+[compiler]
+source_dir = "/faas/boilerplate"
+
+[registry]
+channel_size = 1
+timeout_secs = 30

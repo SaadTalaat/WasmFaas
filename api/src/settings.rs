@@ -14,6 +14,7 @@ pub struct Settings {
 pub struct HttpSettings {
     pub host: String,
     pub port: u16,
+    pub assets_directory: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,8 +41,10 @@ pub struct RegistrySettings {
 
 impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
+        let config_base = std::env::var("FAAS_CONFIG_DIR").unwrap_or_else(|_| "./config".into());
+        let mode = std::env::var("FAAS_ENV").unwrap_or_else(|_| "dev".into());
         let config = Config::builder()
-            .add_source(File::with_name("./config/default.toml"))
+            .add_source(File::with_name(&format!("{}/{}.toml", config_base, mode)))
             .add_source(config::Environment::with_prefix("FAAS"))
             .build()?;
         return config.try_deserialize();

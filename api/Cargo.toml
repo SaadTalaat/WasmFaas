@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 
-axum ={ version="x", features =["form", "http1", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "ws", "macros"]}
+axum ={ version="0.6.18", features =["form", "http1", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "ws", "macros"]}
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

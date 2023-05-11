@@ -41,7 +41,7 @@ impl Compiler {
             .output()?;
 
         if !output.status.success() {
-            tracing::trace!("Compilation failed");
+            tracing::trace!("Compilation failed: {:?}", output);
             Err(CompileError::Generic)
         } else {
             // Read binary
