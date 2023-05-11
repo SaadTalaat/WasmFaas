@@ -1,4 +1,5 @@
 mod deploy;
+mod result;
 mod invoke;
 mod ws;
 pub use deploy::deploy as DeployHandler;

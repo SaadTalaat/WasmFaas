@@ -8,7 +8,8 @@ use axum::{
 use faas::{
     compiler::Compiler,
     handlers::{DeployHandler, InvokeHandler, WSHandler},
-    state::Handles,
+    extensions::Handles,
+    state::AppState,
     Registry, Settings,
 };
 
@@ -19,6 +20,10 @@ use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
+};
+use diesel_async::{
+    pooled_connection::{bb8::Pool, AsyncDieselConnectionManager},
+    AsyncPgConnection,
 };
 
 enum MyError {}
@@ -35,21 +40,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing::info!("Running with settings: {:?}", settings);
     tracing_subscriber::fmt::init();
     let registry = Registry::start(settings.registry);
-    let compiler = Compiler::new("./boilerplate");
+    let compiler = Compiler::new(&settings.compiler.source_dir);
     let handles = Handles::new(registry, compiler)?;
     let extra_layers = ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
+        // allow requests from any origin
         .layer(CorsLayer::new().allow_origin(Any))
         .layer(Extension(handles));
-    // allow requests from any origin
 
+    let db_config = AsyncDieselConnectionManager::<AsyncPgConnection>::new(settings.db_url);
+    let db_pool = Pool::builder().build(db_config).await.unwrap();
+    let state = AppState::new(db_pool);
     let app = Router::new()
         .nest_service("/assets", ServeDir::new("bin"))
         .route("/", get(|| async { "hello" }))
         .route("/deploy", post(DeployHandler))
         .route("/invoke/:name", post(InvokeHandler))
         .route("/ws", get(WSHandler))
-        .layer(extra_layers);
+        .layer(extra_layers)
+        .with_state(state);
 
     let listen_addr: SocketAddr = "0.0.0.0:8090".parse()?;
     tracing::info!("Server started: Listening on: {}", listen_addr);

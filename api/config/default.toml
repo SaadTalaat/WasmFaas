@@ -3,11 +3,10 @@ host = "0.0.0.0"
 port = 8090
 
 [storage]
-medium = {type = "local", directory="./bin"}
+medium = {type = "local", directory="assets"}
 
 [compiler]
 source_dir = "./boilerplate"
-out_dir = "./bin"
 
 [registry]
 channel_size = 1

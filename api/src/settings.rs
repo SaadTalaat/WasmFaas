@@ -7,6 +7,7 @@ pub struct Settings {
     pub storage: StorageSettings,
     pub compiler: CompilerSettings,
     pub registry: RegistrySettings,
+    pub db_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +30,6 @@ pub struct StorageSettings {
 #[derive(Debug, Deserialize)]
 pub struct CompilerSettings {
     pub source_dir: String,
-    pub out_dir: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,6 +42,7 @@ impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
         let config = Config::builder()
             .add_source(File::with_name("./config/default.toml"))
+            .add_source(config::Environment::with_prefix("FAAS"))
             .build()?;
         return config.try_deserialize();
     }

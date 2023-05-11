@@ -1,6 +1,7 @@
 use super::Storage;
 use std::io::Error as IOError;
 use std::path::Path;
+use axum::async_trait;
 
 #[derive(Debug, Clone)]
 pub struct LocalStorage {
@@ -20,16 +21,17 @@ impl LocalStorage {
     }
 }
 
+#[async_trait]
 impl Storage for LocalStorage {
-    fn fetch(&self, name: &str) -> Result<Vec<u8>, IOError> {
+    async fn fetch(&self, name: &str) -> Result<Vec<u8>, IOError> {
         let path = Path::new(&self.base_dir).join(name).with_extension("wasm");
-        std::fs::read(path)
+        tokio::fs::read(path).await
     }
 
-    fn store(&self, name: &str, binary: &[u8], meta: String) -> Result<(), IOError> {
+    async fn store(&self, name: &str, binary: &[u8]) -> Result<String, IOError> {
         let path = Path::new(&self.base_dir).join(name).with_extension("wasm");
-        let meta_path = Path::new(&self.base_dir).join(name).with_extension("json");
-        std::fs::write(path, binary)?;
-        std::fs::write(meta_path, meta.as_bytes())
+        let path_str = format!("{}", path.display());
+        tokio::fs::write(path, binary).await?;
+        Ok(path_str)
     }
 }

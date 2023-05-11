@@ -1,12 +1,14 @@
-use crate::compiler::Compiler;
-use crate::storage;
+use crate::util::{
+    compiler::Compiler,
+    storage::{self, Storage},
+};
 use crate::{Registry, Settings};
 use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Handles {
-    pub storage: Arc<dyn storage::Storage + Sync + Send>,
+    pub storage: Arc<dyn Storage + Sync + Send>,
     pub registry: Arc<Registry>,
     pub compiler: Arc<Compiler>,
 }

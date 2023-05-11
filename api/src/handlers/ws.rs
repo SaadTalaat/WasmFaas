@@ -1,6 +1,6 @@
 use crate::proto::{NodeMsg, RegistryMsg, WSProto};
 use crate::registry::RegistryHandle;
-use crate::state::Handles;
+use crate::extensions::Handles;
 use crate::Registry;
 use axum::extract::connect_info::ConnectInfo;
 use axum::{

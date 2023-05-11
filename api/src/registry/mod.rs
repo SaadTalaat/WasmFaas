@@ -194,25 +194,8 @@ pub enum BackendError {
     InternalNodeHandling,
 }
 
-impl Into<Status> for BackendError {
-    fn into(self) -> Status {
-        let msg = format!("{}", self);
-        let kind = match self {
-            _ => StatusKind::InternalError,
-        };
-        Status::new(kind, msg)
-    }
-}
-
 impl<T> From<SendTimeoutError<T>> for BackendError {
     fn from(_: SendTimeoutError<T>) -> BackendError {
         BackendError::Timeout
-    }
-}
-
-impl IntoResponse for BackendError {
-    fn into_response(self) -> Response {
-        let status: Status = self.into();
-        status.into_response()
     }
 }
