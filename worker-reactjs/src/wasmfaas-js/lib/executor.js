@@ -152,7 +152,7 @@ const parseReturnPtr = (wasmInstance, returnSignature, returnPtr) => {
   }
 }
 
-export default async (wasmBytes, fn_name, signature, args) => {
+const execute = async (wasmBytes, fn_name, signature, args) => {
   let wasmModule = await WebAssembly.instantiate(wasmBytes, imports);
   let wasmInstance = wasmModule.instance;
   let wasmArgs = [];
@@ -178,4 +178,5 @@ export default async (wasmBytes, fn_name, signature, args) => {
   } else {
     return parseReturnPtr(wasmInstance, signature.ret, returnPtr);
   }
-}
+};
+export default execute;

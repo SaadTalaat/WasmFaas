@@ -1,4 +1,4 @@
-import * as Executor from "./executor.js";
+import Executor from "./executor.js";
 import axios from "axios";
 /*
  * Expected incoming message schema
