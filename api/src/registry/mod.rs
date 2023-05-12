@@ -106,6 +106,7 @@ impl Registry {
 
         match result_v {
             RegistryMsg::InvokeResult(r) => Ok(Status::ok_payload(r)),
+            _ => panic!("Unexpected RegistryMsg received {:?}", result_v)
         }
     }
 }
