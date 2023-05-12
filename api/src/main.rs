@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let db_pool = Pool::builder().build(db_config).await.unwrap();
     let state = AppState::new(db_pool);
     let app = Router::new()
-        .nest_service(&settings.http.assets_directory, ServeDir::new("bin"))
+        .nest_service("/assets", ServeDir::new(&settings.http.assets_directory))
         .route("/functions", post(DeployHandler))
         .route("/functions/:id", post(InvokeHandler))
         .route("/ws", get(WSHandler))

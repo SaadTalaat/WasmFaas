@@ -172,7 +172,8 @@ async fn registry_relay(mut socket: SplitStream<WebSocket>, reply_pool: Arc<WSRe
                         }
                     },
                     Some(Err(msg)) => {
-                        tracing::warn!("Error from registry_relay: {:?}", msg);
+                        tracing::warn!("Disconnecting, error occurred while waiting for worker to respond registry_relay: {:?}", msg);
+                        break;
 
                     }
                     // TODO: properly handle empty response
@@ -195,7 +196,13 @@ async fn process_worker_msg(msg: Message, reply_pool: &Arc<WSReplyPool>) -> Cont
                 Ok(payload) => payload,
                 // WS Client sending malformed payloads
                 // Assume malicious and disconnect
-                Err(_) => return ControlFlow::Break(()),
+                Err(_) => {
+                    tracing::info!(
+                        "Disconnecting, Worker responded with malformed response {}",
+                        response_body
+                    );
+                    return ControlFlow::Break(());
+                }
             };
 
             match response {
@@ -213,9 +220,10 @@ async fn process_worker_msg(msg: Message, reply_pool: &Arc<WSReplyPool>) -> Cont
                         _ => (),
                     }
                 }
-                _ => {
+                msg => {
                     // WS client sending illegal messages i.e. WSProto::Invoke
                     // disconnect
+                    tracing::info!("Disconnecting, Worker sent an illegal message {:?}", msg);
                     return ControlFlow::Break(());
                 }
             }

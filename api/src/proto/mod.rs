@@ -51,10 +51,7 @@ impl WSProto {
 impl Into<RegistryMsg> for WSProto {
     fn into(self) -> RegistryMsg {
         match self {
-            Self::Result {
-                request_id,
-                content,
-            } => RegistryMsg::InvokeResult(content),
+            Self::Result { content, .. } => RegistryMsg::InvokeResult(content),
             _ => panic!("Cannot cast {:?} to RegistryMsg", self),
         }
     }
@@ -63,6 +60,7 @@ impl Into<RegistryMsg> for WSProto {
 #[derive(Debug)]
 pub enum RegistryMsg {
     InvokeResult(JsValue),
+    Disconnected
 }
 
 #[derive(Debug)]
