@@ -14,6 +14,7 @@ pub enum StatusKind {
     InternalError,
     NotFound,
     Forbidden,
+    UnsupportedMediaType,
 }
 
 impl StatusKind {
@@ -24,6 +25,7 @@ impl StatusKind {
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::UnsupportedMediaType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
         }
     }
 }

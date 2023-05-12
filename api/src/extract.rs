@@ -1,3 +1,4 @@
+use crate::status::{Status, StatusKind};
 use axum::{
     body::Bytes,
     extract::FromRequest,
@@ -6,16 +7,16 @@ use axum::{
     Json,
 };
 
-pub struct JsonOrWasm<T>(pub T);
+pub struct WasmRepr<T>(pub T);
 
 #[axum::async_trait]
-impl<S, B, T> FromRequest<S, B> for JsonOrWasm<T>
+impl<S, B, T> FromRequest<S, B> for WasmRepr<T>
 where
     S: Send + Sync,
     B: Send + 'static,
     Json<T>: FromRequest<S, B>,
     Bytes: FromRequest<S, B>,
-    T: 'static + From<Bytes>,
+    T: 'static + From<Bytes> + From<String>,
 {
     type Rejection = Response;
 
@@ -36,11 +37,25 @@ where
                     .await
                     .map_err(IntoResponse::into_response)?;
                 Ok(Self(T::from(payload)))
+            } else if content_type.starts_with("application/text") {
+                let payload = Bytes::from_request(request, state)
+                    .await
+                    .map_err(IntoResponse::into_response)?;
+                let payload = String::from_utf8(payload.to_vec()).map_err(|err| {
+                    Status::new(
+                        StatusKind::UnsupportedMediaType,
+                        format!("malformed payload {err}"),
+                    )
+                    .into_response()
+                })?;
+                Ok(Self(T::from(payload)))
             } else {
-                Err(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response())
+                let msg = format!("unsupported content type: {}", content_type);
+                Err(Status::new(StatusKind::UnsupportedMediaType, msg).into_response())
             }
         } else {
-            Err(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response())
+            let msg = format!("Content-Type must be provided");
+            Err(Status::new(StatusKind::UnsupportedMediaType, msg).into_response())
         }
     }
 }

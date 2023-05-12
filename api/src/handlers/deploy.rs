@@ -1,19 +1,22 @@
 use super::result::{APIError, APIResult};
 use crate::{
-    db::models::Function, extensions::Handles, extract::JsonOrWasm, state::AppState,
+    db::models::Function, extensions::Handles, extract::WasmRepr, state::AppState,
     status::Status, util::wasm::extract_description,
 };
-use axum::extract::{Extension, State};
+use axum::{
+    body::Bytes,
+    extract::{Extension, State}
+};
 use serde::{Deserialize, Serialize};
 
 #[axum::debug_handler]
 pub async fn deploy(
     handles: Extension<Handles>,
     state: State<AppState>,
-    JsonOrWasm(func): JsonOrWasm<DeployableFunction>,
+    WasmRepr(func): WasmRepr<DeployableFunction>,
 ) -> APIResult {
     let bytes = match func {
-        DeployableFunction::Code(code) => {
+        DeployableFunction::Body(code) => {
             tracing::trace!("Deploying function");
             let bytes = handles.compiler.compile(&code).await?;
             tracing::trace!("Compiled function with size: {} bytes", bytes.len());
@@ -51,15 +54,21 @@ pub async fn deploy(
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
+#[serde(rename_all="snake_case")]
 pub enum DeployableFunction {
-    Code(String),
+    Body(String),
     Bytes(Vec<u8>),
 }
 
-impl From<bytes::Bytes> for DeployableFunction {
-    fn from(payload: bytes::Bytes) -> DeployableFunction {
+impl From<Bytes> for DeployableFunction {
+    fn from(payload: Bytes) -> DeployableFunction {
         DeployableFunction::Bytes(payload.to_vec())
+    }
+}
+
+impl From<String> for DeployableFunction {
+    fn from(payload: String) -> DeployableFunction {
+        DeployableFunction::Body(payload)
     }
 }
 
