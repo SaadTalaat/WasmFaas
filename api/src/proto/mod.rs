@@ -1,3 +1,4 @@
+use crate::db::models::FunctionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsValue;
 use tokio::sync::oneshot::Sender;
@@ -9,7 +10,9 @@ pub enum WSProto {
     Invoke {
         // TODO: Change to UUID?
         request_id: String,
+        name: String,
         uri: String,
+        signature: FunctionType,
         args: Vec<JsValue>,
     },
     Result {
@@ -19,10 +22,18 @@ pub enum WSProto {
 }
 
 impl WSProto {
-    pub fn invoke_request(request_id: String, uri: String, args: Vec<JsValue>) -> WSProto {
+    pub fn invoke_request(
+        request_id: String,
+        name: String,
+        uri: String,
+        signature: FunctionType,
+        args: Vec<JsValue>,
+    ) -> WSProto {
         Self::Invoke {
             request_id,
+            name,
             uri,
+            signature,
             args,
         }
     }
@@ -37,20 +48,6 @@ impl WSProto {
     }
 }
 
-#[derive(Debug)]
-pub enum RegistryMsg {
-    InvokeResult(JsValue),
-}
-
-#[derive(Debug)]
-pub enum NodeMsg {
-    Invoke {
-        uri: String,
-        args: Vec<JsValue>,
-        sender: Sender<RegistryMsg>,
-    },
-}
-
 impl Into<RegistryMsg> for WSProto {
     fn into(self) -> RegistryMsg {
         match self {
@@ -61,4 +58,20 @@ impl Into<RegistryMsg> for WSProto {
             _ => panic!("Cannot cast {:?} to RegistryMsg", self),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum RegistryMsg {
+    InvokeResult(JsValue),
+}
+
+#[derive(Debug)]
+pub enum NodeMsg {
+    Invoke {
+        name: String,
+        uri: String,
+        signature: FunctionType,
+        args: Vec<JsValue>,
+        sender: Sender<RegistryMsg>,
+    },
 }

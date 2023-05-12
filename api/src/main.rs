@@ -1,7 +1,5 @@
 use axum::{
-    extract::{Extension, FromRequestParts},
-    http::{StatusCode, request::Parts, header::CONTENT_TYPE},
-    response::{IntoResponse, Response},
+    extract::{Extension},
     routing::{get, post},
     Router,
 };
@@ -24,14 +22,6 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
-
-enum MyError {}
-
-impl IntoResponse for MyError {
-    fn into_response(self) -> axum::response::Response {
-        (StatusCode::BAD_REQUEST, "Bad Request").into_response()
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

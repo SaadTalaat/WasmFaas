@@ -136,10 +136,17 @@ async fn send_to_worker(
 ) -> ControlFlow<(), ()> {
     tracing::trace!("Relaying message {msg:?} to worker");
     match msg {
-        NodeMsg::Invoke { uri, args, sender } => {
+        NodeMsg::Invoke {
+            name,
+            uri,
+            signature,
+            args,
+            sender,
+        } => {
             let request_id = Uuid::new_v4().to_string();
             let reply_sender = sender;
-            let ws_msg: WSProto = WSProto::invoke_request(request_id.clone(), uri, args);
+            let ws_msg: WSProto =
+                WSProto::invoke_request(request_id.clone(), name, uri, signature, args);
             // TODO: insert call timestamp to cleanup senders
             reply_pool.register(request_id, reply_sender).await;
             let sent_status = socket.send(Message::Text(ws_msg.to_json())).await;

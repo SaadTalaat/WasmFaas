@@ -1,4 +1,5 @@
 use crate::{
+    db::models::FunctionType,
     proto::{NodeMsg, RegistryMsg},
     settings::RegistrySettings,
     status::Status,
@@ -50,7 +51,9 @@ impl Registry {
 
     pub async fn invoke(
         &self,
+        name: String,
         uri: String,
+        signature: FunctionType,
         args: Vec<JsValue>,
     ) -> Result<Status, BackendError> {
         let node = self.nodes.get_node().await?;
@@ -59,7 +62,9 @@ impl Registry {
 
         let (sender, mut receiver) = oneshot::channel();
         let msg = NodeMsg::Invoke {
+            name,
             uri,
+            signature,
             args,
             sender,
         };

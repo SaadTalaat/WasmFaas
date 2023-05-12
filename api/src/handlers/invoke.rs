@@ -10,7 +10,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use serde_json::Value as JsonValue;
+use serde_json::Value as JsValue;
 use std::net::SocketAddr;
 
 pub async fn invoke(
@@ -38,10 +38,12 @@ pub async fn invoke(
     );
     let registry = &handles.registry;
     tracing::trace!("Dispatching invocation request to worker registry");
-    Ok(registry.invoke(func.uri, request.args).await?)
+    Ok(registry
+        .invoke(func.name, func.uri, func.signature, request.args)
+        .await?)
 }
 
 #[derive(Deserialize)]
 pub struct UserInvokeRequest {
-    args: Vec<JsonValue>,
+    args: Vec<JsValue>,
 }
