@@ -1,7 +1,7 @@
 use axum::{
-    extract::Extension,
-    http::StatusCode,
-    response::IntoResponse,
+    extract::{Extension, FromRequestParts},
+    http::{StatusCode, request::Parts, header::CONTENT_TYPE},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
@@ -14,8 +14,10 @@ use diesel_async::{
     pooled_connection::{bb8::Pool, AsyncDieselConnectionManager},
     AsyncPgConnection,
 };
-use std::error::Error;
-use std::net::SocketAddr;
+use std::{
+    error::Error,
+    net::SocketAddr,
+};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -48,7 +50,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let state = AppState::new(db_pool);
     let app = Router::new()
         .nest_service(&settings.http.assets_directory, ServeDir::new("bin"))
-        .route("/", get(|| async { "hello" }))
         .route("/functions", post(DeployHandler))
         .route("/functions/:id", post(InvokeHandler))
         .route("/ws", get(WSHandler))

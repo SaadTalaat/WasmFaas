@@ -1,30 +1,36 @@
 use super::result::{APIError, APIResult};
 use crate::{
-    db::models::Function, extensions::Handles, state::AppState, status::Status,
-    util::wasm::extract_description,
+    db::models::Function, extensions::Handles, extract::JsonOrWasm, state::AppState,
+    status::Status, util::wasm::extract_description,
 };
-use axum::{
-    extract::{Extension, State},
-    Json,
-};
-
+use axum::extract::{Extension, State};
 use serde::{Deserialize, Serialize};
 
+
+#[axum::debug_handler]
 pub async fn deploy(
-    Extension(handles): Extension<Handles>,
-    State(state): State<AppState>,
-    Json(func): Json<DeployableFunction>,
+    handles: Extension<Handles>,
+    state: State<AppState>,
+    JsonOrWasm(func): JsonOrWasm<DeployableFunction>,
 ) -> APIResult {
-    // Compile function
-    tracing::info!("Deploying function: {}", &func.name);
-    let bytes = handles.compiler.compile(&func.body).await?;
-    tracing::trace!("Compiled function with size: {} bytes", bytes.len());
+    let bytes = match func {
+        DeployableFunction::Code(code) => {
+            tracing::trace!("Deploying function");
+            let bytes = handles.compiler.compile(&code).await?;
+            tracing::trace!("Compiled function with size: {} bytes", bytes.len());
+            bytes
+        }
+        DeployableFunction::Bytes(bytes) => {
+            tracing::trace!("Deploying Wasm module, payload size: {}", bytes.len());
+            bytes
+        }
+    };
     // Extract function signature
-    let description = extract_description(&func.name, &bytes)?;
+    let (name, description) = extract_description(&bytes)?;
     tracing::trace!("Function signature: {:?}", &description);
     // Store function to Storage medium, i.e. Disk, S3..etc
     let suffix = rand::random::<u32>();
-    let filename = format!("{}_{}", &func.name, suffix);
+    let filename = format!("{}_{}", &name, suffix);
     let path = handles
         .storage
         .store(&filename, &bytes)
@@ -36,7 +42,7 @@ pub async fn deploy(
         .get_db_conn()
         .await
         .map_err(|_| APIError::InternalError)?;
-    let func = Function::new(&func.name, &path, &path, &description)?
+    let func = Function::new(&name, &path, &path, &description)?
         .insert(&mut db_conn)
         .await
         .map_err(|_| APIError::InternalError)?;
@@ -46,9 +52,16 @@ pub async fn deploy(
 }
 
 #[derive(Deserialize)]
-pub struct DeployableFunction {
-    name: String,
-    body: String,
+#[serde(untagged)]
+pub enum DeployableFunction {
+    Code(String),
+    Bytes(Vec<u8>),
+}
+
+impl From<bytes::Bytes> for DeployableFunction {
+    fn from(payload: bytes::Bytes) -> DeployableFunction {
+        DeployableFunction::Bytes(payload.to_vec())
+    }
 }
 
 #[derive(Serialize)]

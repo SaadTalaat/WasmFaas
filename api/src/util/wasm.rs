@@ -4,7 +4,7 @@ use wasmer::{
     FunctionEnvMut as HostFunctionEnvMut, Instance, Module, Store,
 };
 
-pub fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, WasmError> {
+pub fn extract_description(bytes: &[u8]) -> Result<(String, Vec<u8>), WasmError> {
     let mut store = Store::default();
     let module = Module::new(&store, bytes).map_err(|_| WasmError::InvalidModule)?;
     fn description(mut env: HostFunctionEnvMut<Vec<u8>>, x: u8) {
@@ -37,16 +37,29 @@ pub fn extract_description(name: &str, bytes: &[u8]) -> Result<Vec<u8>, WasmErro
         tracing::warn!("Failed to load instance: {e:?}");
         WasmError::LoadingInstance
     })?;
+    let mut maybe_name = None;
+    let desc_prefix = "__wbindgen_describe_";
+    for (export_name, _) in instance.exports.iter() {
+        if export_name.starts_with(desc_prefix) && maybe_name.is_none() {
+            maybe_name = Some(String::from(&export_name[desc_prefix.len()..]));
+        } else if export_name.starts_with(desc_prefix) && maybe_name.is_some() {
+            return Err(WasmError::MultipleExports);
+        }
+    }
+
+    let name = maybe_name.ok_or(WasmError::FunctionNotFound)?;
+    tracing::trace!("Detected exported function: {}", name);
+
     let desc_func_name = format!("__wbindgen_describe_{}", name);
     let wasm_desc_func = instance
         .exports
         .get_function(&desc_func_name)
-        .map_err(|_| WasmError::FunctionNotFound(String::from(name)))?;
+        .map_err(|_| WasmError::FunctionNotFound)?;
     wasm_desc_func
         .call(&mut store, &vec![])
         .map_err(|_| WasmError::CorruptFunctionDesc)?;
     let result = env.as_ref(&store).clone();
-    Ok(result)
+    Ok((name, result))
 }
 
 #[derive(Debug, Error)]
@@ -55,8 +68,10 @@ pub enum WasmError {
     LoadingInstance,
     #[error("corrupt wasm module")]
     InvalidModule,
-    #[error("function({0}) not found in binary")]
-    FunctionNotFound(String),
+    #[error("no function were found in binary")]
+    FunctionNotFound,
     #[error("corrupt function signature")]
     CorruptFunctionDesc,
+    #[error("multiple functions were exported, only export one function")]
+    MultipleExports,
 }

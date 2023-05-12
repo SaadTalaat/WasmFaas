@@ -1,5 +1,6 @@
 mod db;
 mod extensions;
+pub mod extract;
 pub mod handlers;
 pub mod proto;
 mod registry;
