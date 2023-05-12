@@ -52,16 +52,16 @@ class BrowserWebSocketWrapper {
 class WasmFaasClient {
 
 
-  constructor(hostname, port, tlsEnabled, kvStore, logger) {
+  constructor(hostUri, tlsEnabled, kvStore, logger) {
 
-    if (!hostname || !port || !kvStore || tlsEnabled === undefined) {
-      throw Error("(hostname, port, tlsEnabled, kvStore) must be provided");
+    if (!hostUri || !kvStore || tlsEnabled === undefined) {
+      throw Error("(hostUri, tlsEnabled, kvStore) must be provided");
     }
     this.kvStore = kvStore;
     this.logger = logger || (() => {});
     // TODO: Configurable proto
-    this.wsUri = (tlsEnabled? "wss" : "ws") +"://" + hostname + ":" + port + "/ws";
-    this.httpBaseUri = (tlsEnabled? "https": "http") + "://" + hostname + ":" + port + "/";
+    this.wsUri = (tlsEnabled? "wss" : "ws") +"://" + hostUri + "/ws";
+    this.httpBaseUri = (tlsEnabled? "https": "http") + "://" + hostUri + "/";
   }
 
   onMessage(callback) {

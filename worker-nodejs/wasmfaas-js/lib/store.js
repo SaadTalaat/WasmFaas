@@ -1,3 +1,6 @@
+const path = require("path");
+const fs = require("fs").promises;
+
 class FileSystemStore {
   baseDirectory = "faas_assets";
   constructor() {
@@ -25,5 +28,5 @@ class FileSystemStore {
   }
 }
 
-module.exports = FileSystemStore;
+module.exports.FileSystemStore = FileSystemStore;
 

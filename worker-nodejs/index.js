@@ -1,7 +1,8 @@
 const {WasmFaasClient, FileSystemStore} = require("./wasmfaas-js");
-const {hostname, port, tlsEnabled} = require("./config");
+const config = require("./config");
 
 
 let kvStore = new FileSystemStore();
-let client = new WasmFaasClient("0.0.0.0", 8090, false, kvStore, console.log);
+console.log(config);
+let client = new WasmFaasClient(config.hostUri, config.tlsEnabled, kvStore, console.log);
 client.start();
