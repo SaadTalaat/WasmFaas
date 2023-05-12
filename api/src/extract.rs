@@ -1,8 +1,9 @@
 use axum::{
+    body::Bytes,
     extract::FromRequest,
-    http::{header::CONTENT_TYPE, request::Parts, Request, StatusCode},
+    http::{header::CONTENT_TYPE, Request, StatusCode},
     response::{IntoResponse, Response},
-    Json, body::Bytes
+    Json,
 };
 
 pub struct JsonOrWasm<T>(pub T);
@@ -36,7 +37,7 @@ where
                     .map_err(IntoResponse::into_response)?;
                 Ok(Self(T::from(payload)))
             } else {
-            Err(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response())
+                Err(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response())
             }
         } else {
             Err(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response())

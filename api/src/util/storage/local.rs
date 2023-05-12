@@ -1,7 +1,7 @@
 use super::Storage;
+use axum::async_trait;
 use std::io::Error as IOError;
 use std::path::Path;
-use axum::async_trait;
 
 #[derive(Debug, Clone)]
 pub struct LocalStorage {

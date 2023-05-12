@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension},
+    extract::Extension,
     routing::{get, post},
     Router,
 };
@@ -12,10 +12,7 @@ use diesel_async::{
     pooled_connection::{bb8::Pool, AsyncDieselConnectionManager},
     AsyncPgConnection,
 };
-use std::{
-    error::Error,
-    net::SocketAddr,
-};
+use std::{error::Error, net::SocketAddr};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
