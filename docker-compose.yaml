@@ -5,12 +5,16 @@ services:
     build:
       context: ./api/
       dockerfile: ./base.dockerfile
+      args:
+        BUILD_ENV : ${FAAS_BUILD_ENV}
     image: faas/base
 
   api:
     build:
       context: ./api/
       dockerfile: ./api.dockerfile
+      args:
+        BUILD_ENV : ${FAAS_BUILD_ENV}
     image: faas/api
     hostname: api
     env_file:
@@ -20,12 +24,13 @@ services:
     depends_on:
       - database
       - migrate
-      - base
 
   migrate:
     build:
       context: ./api/
       dockerfile: ./migrate.dockerfile
+      args:
+        BUILD_ENV : ${FAAS_BUILD_ENV}
     image: faas/migrate
     env_file:
       - ./config/${FAAS_BUILD_ENV}.env
@@ -41,3 +46,39 @@ services:
       - "5432:5432"
     expose:
       - "5432"
+
+  worker-nodejs:
+    build:
+      context: ./worker-nodejs/
+      dockerfile: ./worker.dockerfile
+      args:
+        BUILD_ENV : ${FAAS_BUILD_ENV}
+    image: faas/worker-nodejs
+    env_file:
+      - ./config/${FAAS_BUILD_ENV}.env
+    depends_on:
+      - api
+  
+  worker-reactjs:
+    build:
+      context: ./worker-reactjs/
+      dockerfile: ./worker.dockerfile
+      args:
+        BUILD_ENV : ${FAAS_BUILD_ENV}
+    image: faas/worker-reactjs
+    env_file:
+      - ./config/${FAAS_BUILD_ENV}.env
+    depends_on:
+      - api
+
+  envoy:
+    build:
+      context: ./envoy/
+      dockerfile: ./envoy.dockerfile
+      args:
+        BUILD_ENV: ${FAAS_BUILD_ENV}
+    image: faas/envoy
+    ports:
+      - "80:80"
+    depends_on:
+      - api
