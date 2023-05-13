@@ -82,6 +82,6 @@ services:
     image: faas/envoy
     ports:
       - "80:80"
-      - "443:80"
+      - "443:443"
     depends_on:
       - api
