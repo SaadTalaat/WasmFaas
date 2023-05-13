@@ -56,6 +56,7 @@ impl WSReplyPool {
 pub async fn ws_handler(
     Extension(handles): Extension<Handles>,
     upgrade: WebSocketUpgrade,
+    // TODO: behind a proxy, extract X-Forwarded-For ip
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     let registry = handles.registry;

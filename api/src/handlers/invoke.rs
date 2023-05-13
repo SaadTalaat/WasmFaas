@@ -39,7 +39,7 @@ pub async fn invoke(
     let registry = &handles.registry;
     tracing::trace!("Dispatching invocation request to worker registry");
     Ok(registry
-        .invoke(func.name, func.uri, func.signature, request.args)
+        .invoke(func.name, func.user_uri, func.signature, request.args)
         .await?)
 }
 

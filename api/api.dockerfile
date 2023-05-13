@@ -1,5 +1,6 @@
 from faas/base:latest
 
+COPY ./src/ /faas/src/api/src
 RUN cargo install --path .
 
 WORKDIR /
@@ -9,6 +10,5 @@ COPY ./boilerplate /faas/boilerplate/
 
 WORKDIR /faas/boilerplate/
 COPY ./config /faas/config
-RUN mkdir assets
 
 CMD ["faas"]

@@ -1,4 +1,4 @@
 export default{
-  hostUri: "skynet:8090",
+  hostUri: "skynet/api",
   tlsEnabled: false,
 }

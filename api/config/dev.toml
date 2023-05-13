@@ -7,7 +7,7 @@ assets_directory = "assets"
 medium = {type = "local", directory="assets"}
 
 [compiler]
-source_dir = "./"
+source_dir = "/faas/boilerplate"
 
 [registry]
 channel_size = 1
