@@ -1,6 +1,6 @@
 let config = {
   "hostUri": "faas.saadtalaat.com/api",
-  "tlsEnabled": false,
+  "tlsEnabled": true,
 };
 
 export default config;
