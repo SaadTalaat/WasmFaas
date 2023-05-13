@@ -44,7 +44,8 @@ pub async fn deploy(
         .get_db_conn()
         .await
         .map_err(|_| APIError::InternalError)?;
-    let func = Function::new(&name, &path, &path, &description)?
+    let user_uri = format!("assets/{}.wasm", filename);
+    let func = Function::new(&name, &path, &user_uri, &description)?
         .insert(&mut db_conn)
         .await
         .map_err(|_| APIError::InternalError)?;

@@ -62,7 +62,8 @@ pub async fn ws_handler(
     upgrade.on_upgrade(move |socket| handle(registry, socket, addr))
 }
 
-async fn handle(registry: Arc<Registry>, socket: WebSocket, _addr: SocketAddr) {
+async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: SocketAddr) {
+    tracing::debug!("Worker [{}] connected.", addr);
     let handle = registry.register().await;
     let node_id = handle.id;
     let reply_pool = Arc::new(WSReplyPool::new());
@@ -96,6 +97,7 @@ async fn handle(registry: Arc<Registry>, socket: WebSocket, _addr: SocketAddr) {
             worker_relay_task.abort();
         },
     }
+    tracing::debug!("Worker [{}] disconnected.", addr);
     registry.deregister(&node_id).await;
 }
 
