@@ -15,6 +15,8 @@ services:
       dockerfile: ./api.dockerfile
       args:
         BUILD_ENV : ${FAAS_BUILD_ENV}
+    volumes:
+      - ./api/assets:/faas/boilerplate/assets
     image: faas/api
     hostname: api
     env_file:
