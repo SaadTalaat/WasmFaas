@@ -60,11 +60,11 @@ impl Into<RegistryMsg> for WSProto {
 #[derive(Debug)]
 pub enum RegistryMsg {
     InvokeResult(JsValue),
-    Disconnected
+    Disconnected,
 }
 
 #[derive(Debug)]
-pub enum NodeMsg {
+pub enum WorkerMsg {
     Invoke {
         name: String,
         uri: String,

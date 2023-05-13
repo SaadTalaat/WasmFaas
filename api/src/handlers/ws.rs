@@ -1,6 +1,6 @@
 use crate::{
     extensions::Handles,
-    proto::{NodeMsg, RegistryMsg, WSProto},
+    proto::{WorkerMsg, RegistryMsg, WSProto},
     registry::Registry,
     registry::RegistryHandle,
     extract::RemoteAddress
@@ -133,13 +133,13 @@ async fn worker_relay(
 }
 
 async fn send_to_worker(
-    msg: NodeMsg,
+    msg: WorkerMsg,
     socket: &mut SplitSink<WebSocket, Message>,
     reply_pool: &Arc<WSReplyPool>,
 ) -> ControlFlow<(), ()> {
     tracing::trace!("Relaying message {msg:?} to worker");
     match msg {
-        NodeMsg::Invoke {
+        WorkerMsg::Invoke {
             name,
             uri,
             signature,
