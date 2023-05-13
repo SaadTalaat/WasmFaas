@@ -4,20 +4,20 @@ use crate::{
     extensions::Handles,
     registry::BackendError,
     state::AppState,
+    extract::RemoteAddress,
 };
 use axum::{
-    extract::{connect_info::ConnectInfo, Extension, Path, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use serde::Deserialize;
 use serde_json::Value as JsValue;
-use std::net::SocketAddr;
 
 pub async fn invoke(
     Extension(handles): Extension<Handles>,
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    RemoteAddress(addr): RemoteAddress,
     Json(request): Json<UserInvokeRequest>,
 ) -> APIResult {
     let mut db_conn = state
@@ -28,7 +28,7 @@ pub async fn invoke(
     let func = Function::get(id, &mut db_conn).await?;
     func.validate_args(&request.args)?;
     // Record request
-    InvokeRequest::new(addr.to_string(), func.id, Some(&request.args))
+    InvokeRequest::new(addr, func.id, Some(&request.args))
         .insert(&mut db_conn)
         .await?;
     tracing::trace!(

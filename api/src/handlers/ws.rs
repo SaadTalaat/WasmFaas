@@ -3,8 +3,8 @@ use crate::{
     proto::{NodeMsg, RegistryMsg, WSProto},
     registry::Registry,
     registry::RegistryHandle,
+    extract::RemoteAddress
 };
-use axum::extract::connect_info::ConnectInfo;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -14,7 +14,7 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
-use std::{collections::HashMap, net::SocketAddr, ops::ControlFlow, sync::Arc};
+use std::{collections::HashMap, ops::ControlFlow, sync::Arc};
 use tokio::{
     sync::{oneshot::Sender, Mutex},
     time::Duration,
@@ -57,13 +57,13 @@ pub async fn ws_handler(
     Extension(handles): Extension<Handles>,
     upgrade: WebSocketUpgrade,
     // TODO: behind a proxy, extract X-Forwarded-For ip
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    RemoteAddress(addr): RemoteAddress
 ) -> impl IntoResponse {
     let registry = handles.registry;
     upgrade.on_upgrade(move |socket| handle(registry, socket, addr))
 }
 
-async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: SocketAddr) {
+async fn handle(registry: Arc<Registry>, socket: WebSocket, addr: String) {
     tracing::debug!("Worker [{}] connected.", addr);
     let handle = registry.register().await;
     let node_id = handle.id;

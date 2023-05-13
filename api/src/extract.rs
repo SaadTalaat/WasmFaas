@@ -1,11 +1,16 @@
 use crate::status::{Status, StatusKind};
 use axum::{
     body::Bytes,
-    extract::FromRequest,
-    http::{header::CONTENT_TYPE, Request, StatusCode},
+    extract::{ConnectInfo, FromRequest, FromRequestParts},
+    http::{
+        header::{CONTENT_TYPE},
+        request::Parts,
+        Request
+    },
     response::{IntoResponse, Response},
     Json,
 };
+use std::net::{SocketAddr};
 
 pub struct WasmRepr<T>(pub T);
 
@@ -56,6 +61,38 @@ where
         } else {
             let msg = format!("Content-Type must be provided");
             Err(Status::new(StatusKind::UnsupportedMediaType, msg).into_response())
+        }
+    }
+}
+
+pub struct RemoteAddress(pub String);
+
+#[axum::async_trait]
+impl<S> FromRequestParts<S> for RemoteAddress
+where
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let maybe_addr = parts
+            .headers
+            .get("X-Forwarded-For")
+            .and_then(|v| v.to_str().ok());
+        match maybe_addr {
+            Some(addr) => {
+                Ok(RemoteAddress(addr.to_owned()))
+            }
+            None => match parts.extensions.get::<ConnectInfo<SocketAddr>>() {
+                Some(socket_addr) => {
+                    let addr = format!("{}", socket_addr.ip());
+                    Ok(RemoteAddress(addr))
+                }
+                None => {
+                    let msg = format!("Unrecognized remote host");
+                    Err(Status::new(StatusKind::BadRequest, msg).into_response())
+                }
+            },
         }
     }
 }
