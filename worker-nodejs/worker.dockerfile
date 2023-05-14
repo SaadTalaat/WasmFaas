@@ -6,4 +6,6 @@ COPY ./ /worker/
 WORKDIR /worker/
 COPY ./config.$NODE_ENV.js ./config.js
 
+RUN npm install
+
 CMD ["npm", "start"]
